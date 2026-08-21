@@ -807,7 +807,7 @@ class SakayDB:
     def generate_odmatrix(self, date_range=None):
         """
         Build an origin-destination matrix of average daily trips.
- 
+    
         Parameters
         ----------
         date_range : tuple of (str or None, str or None), optional
@@ -816,7 +816,7 @@ class SakayDB:
             (None, high) is "up to high", (low, high) is "between
             both, inclusive". Defaults to None, meaning no filtering
             -- every trip in trips.csv is included.
- 
+    
         Returns
         -------
         pd.DataFrame
@@ -825,7 +825,7 @@ class SakayDB:
             the average number of trips per day, for that specific
             pickup/dropoff pair, counted only over the days that
             *specific pair* actually had a trip.
- 
+    
         Raises
         ------
         SakayDBError
@@ -835,43 +835,36 @@ class SakayDB:
         df_trips = self._load_trips()
         if df_trips.empty:
             return pd.DataFrame()
- 
+    
         df_locations = self._load_locations()
         pickup = pd.to_datetime(
             df_trips["pickup_datetime"], format=DATETIME_FORMAT
         )
- 
+    
         if date_range is not None:
             if not isinstance(date_range, tuple) or len(date_range) != 2:
                 raise SakayDBError(
                     "date_range must be a 2-element tuple, e.g. "
                     "(low, None).")
             low, high = date_range
-            # Create all True boolean mask with len(df_trips.index)
             mask = pd.Series(True, index=df_trips.index)
- 
-            # Filter by changing those elements in "mask"
-            # that are True, to False based on date_range criteria
-            # date_range: tuple(low, high)
- 
+    
             if low is not None:
-                # Returns SakayDBError if datetime input 
-                # does not follow format
                 self._validate_search_value(
                     "pickup_datetime", "datetime", low)
                 low_bound = datetime.strptime(low, DATETIME_FORMAT)
                 mask &= pickup >= low_bound
- 
+    
             if high is not None:
                 self._validate_search_value(
                     "pickup_datetime", "datetime", high
                 )
                 high_bound = datetime.strptime(high, DATETIME_FORMAT)
                 mask &= pickup <= high_bound
- 
+    
             df_trips = df_trips.loc[mask]
             pickup = pickup.loc[mask]
- 
+    
         # Map location ids to their names, once, then attach the
         # readable names and the plain calendar date onto the trips
         # table for grouping.
@@ -879,37 +872,34 @@ class SakayDB:
         pickup_names = df_trips["pickup_loc_id"].map(loc_names)
         dropoff_names = df_trips["dropoff_loc_id"].map(loc_names)
         pickup_dates = pickup.dt.date
- 
+    
         pair_table = pd.DataFrame({
             "pickup_loc_name": pickup_names,
             "dropoff_loc_name": dropoff_names,
             "pickup_date": pickup_dates,
         })
- 
-        # For each pickup/dropoff pair, the denominator is how many
-        # distinct days THAT SPECIFIC PAIR had a trip on -- not the
-        # number of days in the whole dataset. A pair that only ever
-        # occurs on 4 different days averages over those 4 days, not
-        # over every day the system has any data for.
-        pair_groups = pair_table.groupby(
-            ["pickup_loc_name", "dropoff_loc_name"]
+    
+        # For each pickup/dropoff pair: total trip count, and the number
+        # of distinct days THAT SPECIFIC PAIR had a trip on. 
+        trip_counts = pair_table.pivot_table(
+            index="dropoff_loc_name", columns="pickup_loc_name",
+            values="pickup_date", aggfunc="count"
         )
-        trip_counts = pair_groups.size()
-        pair_days = pair_groups["pickup_date"].nunique()
- 
-        # Every location in locations.csv gets a row and a column,
-        # even ones with zero trips -- that's why the matrix is
-        # always square with shape (n_locations, n_locations),
-        # regardless of how many pairs actually have data.
+        pair_days = pair_table.pivot_table(
+            index="dropoff_loc_name", columns="pickup_loc_name",
+            values="pickup_date", aggfunc="nunique"
+        )
+        rate_matrix = trip_counts / pair_days
+    
+        # Every location in locations.csv gets a row and a column, even
+        # ones with zero trips. that's why the matrix is always square
+        # with shape (n_locations, n_locations), regardless of how many
+        # pairs actually have data.
         all_locations = df_locations["loc_name"].tolist()
-        od_matrix = pd.DataFrame(
-            0.0, index=all_locations, columns=all_locations
+        od_matrix = rate_matrix.reindex(
+            index=all_locations, columns=all_locations, fill_value=0.0
         )
-        for (pickup_name, dropoff_name), count in trip_counts.items():
-            n_days_pair = pair_days[(pickup_name, dropoff_name)]
-            # Rows are dropoff_loc_name, columns are pickup_loc_name.
-            od_matrix.loc[dropoff_name, pickup_name] = count / n_days_pair
- 
+    
         return od_matrix
 
 
