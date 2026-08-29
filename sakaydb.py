@@ -67,7 +67,7 @@ class SakayDB:
 
     def _load_csv(self, filename, columns):
         """Load a CSV file, or return an empty DataFrame if missing."""
-        # A file might not exist yet on a fresh data_dir 
+        # A file might not exist yet on a fresh data_dir
         # (e.g. first ever add_trip call)
         path = self._path(filename)
         if os.path.exists(path):
@@ -116,7 +116,7 @@ class SakayDB:
             & (df_drivers["given_name"].str.strip().str.lower()
                == given_name.lower())
         )
-        if match.any() == True:
+        if match.any():
             # Driver already exists, reuse their id
             # .iloc[0] guards against possible duplicate rows.
             driver_id = int(df_drivers.loc[match, "driver_id"].iloc[0])
@@ -169,13 +169,13 @@ class SakayDB:
             == loc_name.lower()
         )
         # If: location already exists
-        if match.any() == True:
+        if match.any():
             location_id = int(df_locations.loc[match, "location_id"].iloc[0])
             return location_id, df_locations
         # Else: location needs to be created with unique ID
         if len(df_locations):
             location_id = int(df_locations["location_id"].max()) + 1
-        else: 
+        else:
             location_id = 1
 
         new_row = pd.DataFrame([{
@@ -184,17 +184,17 @@ class SakayDB:
         }])
 
         if df_locations.empty:
-            df_trips = new_row    
+            df_trips = new_row
         else:
-            df_locations = pd.concat([df_locations, new_row], 
+            df_locations = pd.concat([df_locations, new_row],
                                      ignore_index=True)
-        
+
         return location_id, df_locations
 
 # 1. Adding Trips
     def add_trip(self, driver, pickup_datetime, dropoff_datetime,
-                passenger_count, pickup_loc_name, dropoff_loc_name,
-                trip_distance, fare_amount):
+                 passenger_count, pickup_loc_name, dropoff_loc_name,
+                 trip_distance, fare_amount):
         """
         Add a single trip to the database.
 
@@ -219,7 +219,7 @@ class SakayDB:
         ------
         SakayDBError
             If an identical trip already exists in trips.csv.
-        """ 
+        """
         # First, load all three 3 CSVs as separate df
         # (trips.csv, drivers.csv, locations.csv)
         df_trips = self._load_trips()
@@ -238,7 +238,7 @@ class SakayDB:
         dropoff_loc_id, df_locations = self._get_or_add_location(
             df_locations, dropoff_loc_name)
 
-        # Now that we have the driver_id, loc_ids 
+        # Now that we have the driver_id, loc_ids
         # Create logic for checking duplicates
         # use ids instead of resolving duplicates
         # Create pd series(bool, bool, bool...)
@@ -253,7 +253,7 @@ class SakayDB:
             & (df_trips["fare_amount"] == fare_amount)
         ).any()
 
-        if is_duplicate_series.any() == True:
+        if is_duplicate_series.any():
             raise SakayDBError("Cannot add a duplicate trip into database")
 
         # Once we confirm that this is a new trip,
@@ -311,14 +311,14 @@ class SakayDB:
         trip_ids = []
 
         REQUIRED_TRIP_KEYS = {
-        "driver",
-        "pickup_datetime",
-        "dropoff_datetime",
-        "passenger_count",
-        "pickup_loc_name",
-        "dropoff_loc_name",
-        "trip_distance",
-        "fare_amount",
+            "driver",
+            "pickup_datetime",
+            "dropoff_datetime",
+            "passenger_count",
+            "pickup_loc_name",
+            "dropoff_loc_name",
+            "trip_distance",
+            "fare_amount",
         }
 
         for i, trip in enumerate(trips):
@@ -333,7 +333,7 @@ class SakayDB:
             # for duplicate trips
             try:
                 trip_id = self.add_trip(**trip)
-            # from Specs "If a trip is already in the database, 
+            # from Specs "If a trip is already in the database,
             # skip it and print"
             except SakayDBError:
                 print(f"Warning: trip index {i} is already in the database. "
@@ -375,7 +375,6 @@ class SakayDB:
         # Except for the input trip ID
         df_trips = df_trips.loc[~match_mask]
         df_trips.to_csv(self._path("trips.csv"), index=False)
-
 
     def _validate_search_value(self, key, kind, value):
         """Check a single (non-range) search value is the right type.
@@ -422,8 +421,7 @@ class SakayDB:
                 raise SakayDBError(
                     f"Invalid value for '{key}': {value} does not "
                     f"match format {DATETIME_FORMAT}."
-                ) 
-
+                )
 
     def _search_column(self, df_trips, key, kind):
         """Return a comparable version of a trips.csv column.
@@ -437,7 +435,6 @@ class SakayDB:
         if kind == "datetime":
             return pd.to_datetime(df_trips[key], format=DATETIME_FORMAT)
         return df_trips[key]
-
 
     def search_trips(self, **kwargs):
         """Search trips.csv by one or more keyword filters.
@@ -537,7 +534,6 @@ class SakayDB:
 
         return result
 
-
     def export_data(self):
         """Export all trips as a single, Pandas dataframe.
 
@@ -583,17 +579,17 @@ class SakayDB:
         pickup_locations = df_locations.rename(columns={
             "location_id": "pickup_loc_id",
             "loc_name": "pickup_loc_name"})
-        merged = merged.merge(pickup_locations, on="pickup_loc_id", 
+        merged = merged.merge(pickup_locations, on="pickup_loc_id",
                               how="left")
 
         # Do the same for drop-off
         dropoff_locations = df_locations.rename(columns={
             "location_id": "dropoff_loc_id",
             "loc_name": "dropoff_loc_name"})
-        merged = merged.merge(dropoff_locations, on="dropoff_loc_id", 
+        merged = merged.merge(dropoff_locations, on="dropoff_loc_id",
                               how="left")
 
-        # Rename "last_name" and "given_name" 
+        # Rename "last_name" and "given_name"
         # to match specs
         # Capitalize the first and last names of the drivers
         merged["driver_lastname"] = merged["last_name"].str.title()
@@ -642,7 +638,7 @@ class SakayDB:
             dates = pickup.dt.date
             day_names = pickup.dt.day_name()
 
-             # First, how many trips happened on each individual date.
+            # First, how many trips happened on each individual date.
             daily_counts = (
                 pd.DataFrame({"date": dates, "day_name": day_names})
                 .groupby(["date", "day_name"])
@@ -696,14 +692,14 @@ class SakayDB:
             return stat_driver()
         elif stat == "all":
             return {"trip": stat_trip(),
-                "passenger": stat_passenger(),
-                "driver": stat_driver(),}
+                    "passenger": stat_passenger(),
+                    "driver": stat_driver(), }
         else:
             raise SakayDBError(f"Unknown stat parameter")
 
     def plot_statistics(self, stat):
         """Plot the statistics computed by generate_statistics.
-    
+
         Parameters
         ----------
         stat : str
@@ -713,12 +709,12 @@ class SakayDB:
               one line per passenger_count.
             - "driver": 7x1 grid of horizontal bar plots, one per
               weekday, showing the top 5 drivers that day.
-    
+
         Returns
         -------
         matplotlib.axes.Axes or matplotlib.figure.Figure
             An Axes for "trip"/"passenger"; a Figure for "driver".
-    
+
         Raises
         ------
         SakayDBError
@@ -728,7 +724,7 @@ class SakayDB:
         # Calendar order for laying out day-of-week axes
         # and subplot grids consistently across all three plot types.
         DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday",
-            "Friday", "Saturday","Sunday",]
+                     "Friday", "Saturday", "Sunday",]
 
         def plot_trip():
             """Bar plot: overall average trips per weekday"""
@@ -765,7 +761,7 @@ class SakayDB:
         def plot_driver():
             """7x1 grid: top-5 drivers per weekday, horizontal bars."""
             stats = self.generate_statistics("driver")
-             # Per Spec: x-ticks must be shared accross subplots
+            # Per Spec: x-ticks must be shared accross subplots
             fig, axes = plt.subplots(
                 nrows=7, ncols=1, figsize=(8, 25), sharex=True
             )
@@ -775,9 +771,9 @@ class SakayDB:
                 # stats: dict(driver_name1: dict(Monday: avg trips,
                 # Tuesday: avg trips,...), driver_name2: ...)
                 day_data = [(name, day_stats[day])
-                    for name, day_stats in stats.items()
-                    if day in day_stats
-                ]
+                            for name, day_stats in stats.items()
+                            if day in day_stats
+                            ]
                 # Spec: sort by decreasing average then alphabetically
                 day_data.sort(key=lambda x: (-x[1], x[0]))
                 top5 = day_data[:5]
@@ -807,7 +803,7 @@ class SakayDB:
     def generate_odmatrix(self, date_range=None):
         """
         Build an origin-destination matrix of average daily trips.
-    
+
         Parameters
         ----------
         date_range : tuple of (str or None, str or None), optional
@@ -816,7 +812,7 @@ class SakayDB:
             (None, high) is "up to high", (low, high) is "between
             both, inclusive". Defaults to None, meaning no filtering
             -- every trip in trips.csv is included.
-    
+
         Returns
         -------
         pd.DataFrame
@@ -825,7 +821,7 @@ class SakayDB:
             the average number of trips per day, for that specific
             pickup/dropoff pair, counted only over the days that
             *specific pair* actually had a trip.
-    
+
         Raises
         ------
         SakayDBError
@@ -835,12 +831,12 @@ class SakayDB:
         df_trips = self._load_trips()
         if df_trips.empty:
             return pd.DataFrame()
-    
+
         df_locations = self._load_locations()
         pickup = pd.to_datetime(
             df_trips["pickup_datetime"], format=DATETIME_FORMAT
         )
-    
+
         if date_range is not None:
             if not isinstance(date_range, tuple) or len(date_range) != 2:
                 raise SakayDBError(
@@ -848,23 +844,23 @@ class SakayDB:
                     "(low, None).")
             low, high = date_range
             mask = pd.Series(True, index=df_trips.index)
-    
+
             if low is not None:
                 self._validate_search_value(
                     "pickup_datetime", "datetime", low)
                 low_bound = datetime.strptime(low, DATETIME_FORMAT)
                 mask &= pickup >= low_bound
-    
+
             if high is not None:
                 self._validate_search_value(
                     "pickup_datetime", "datetime", high
                 )
                 high_bound = datetime.strptime(high, DATETIME_FORMAT)
                 mask &= pickup <= high_bound
-    
+
             df_trips = df_trips.loc[mask]
             pickup = pickup.loc[mask]
-    
+
         # Map location ids to their names, once, then attach the
         # readable names and the plain calendar date onto the trips
         # table for grouping.
@@ -872,15 +868,15 @@ class SakayDB:
         pickup_names = df_trips["pickup_loc_id"].map(loc_names)
         dropoff_names = df_trips["dropoff_loc_id"].map(loc_names)
         pickup_dates = pickup.dt.date
-    
+
         pair_table = pd.DataFrame({
             "pickup_loc_name": pickup_names,
             "dropoff_loc_name": dropoff_names,
             "pickup_date": pickup_dates,
         })
-    
+
         # For each pickup/dropoff pair: total trip count, and the number
-        # of distinct days THAT SPECIFIC PAIR had a trip on. 
+        # of distinct days THAT SPECIFIC PAIR had a trip on.
         trip_counts = pair_table.pivot_table(
             index="dropoff_loc_name", columns="pickup_loc_name",
             values="pickup_date", aggfunc="count"
@@ -890,21 +886,17 @@ class SakayDB:
             values="pickup_date", aggfunc="nunique"
         )
         rate_matrix = trip_counts / pair_days
-    
+
         # Every location in locations.csv gets a row and a column, even
-        # ones with zero trips. that's why the matrix is always square
-        # with shape (n_locations, n_locations), regardless of how many
-        # pairs actually have data.
+        # ones with zero trips to make sure the matrix is always square
+        # with shape (n_locations, n_locations)
+        # Fill in blanks with 0
         all_locations = df_locations["loc_name"].tolist()
         od_matrix = rate_matrix.reindex(
             index=all_locations, columns=all_locations, fill_value=0.0
         )
-    
+
         return od_matrix
 
 
 # In[ ]:
-
-
-
-
